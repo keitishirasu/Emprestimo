@@ -1,0 +1,65 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Empréstimo"><meta name="theme-color" content="#0b3d5c">
+<title>Empréstimo</title><style>
+body{font-family:-apple-system,Roboto,sans-serif;margin:0;background:#f2f5f8;color:#123}
+header{background:#0b3d5c;color:#fff;padding:20px;text-align:center}
+.big{font-size:2.2em;font-weight:700;margin:6px 0}.card{background:#fff;margin:12px;padding:16px;border-radius:14px;box-shadow:0 1px 4px #0002}
+input,button{font-size:1.05em;padding:10px;width:100%;box-sizing:border-box;margin:5px 0;border-radius:8px;border:1px solid #ccc}
+button{background:#0b3d5c;color:#fff;border:0}table{width:100%;border-collapse:collapse;font-size:.9em}
+td,th{padding:6px;border-bottom:1px solid #eee;text-align:right}td:first-child,th:first-child{text-align:left}
+small{color:#678}.x{background:#c33;width:auto;padding:4px 8px;font-size:.8em}</style></head><body>
+<header><div style="font-size:.9em;opacity:.85">Empréstimo de Dr. Keiti Shirasu</div><div>Saldo devedor hoje</div><div class="big" id="saldo">-</div><small style="color:#cde" id="info"></small></header>
+<div class="card"><b>Pagar via Pix</b><br><small>Chave (celular) — Keiti Fernando Shirasu</small>
+<div style="font-size:1.3em;font-weight:700;margin:6px 0">44999770290</div>
+<button onclick="copiarPix()">Copiar chave Pix</button></div>
+<div class="card"><b>Registrar pagamento</b><br><small>Data do Pix e valor pago</small>
+<input type="date" id="dt"><input type="text" inputmode="decimal" id="val" placeholder="Valor pago (R$), ex.: 1.500,00">
+<button onclick="add()">Abater pagamento</button></div>
+<div class="card"><b>Simular quitação</b><br><small>Escolha uma data futura para ver o valor que zera a dívida</small>
+<input type="date" id="sim" onchange="simular()"><div id="simr" style="font-size:1.3em;font-weight:700;margin-top:6px"></div></div>
+<div class="card"><b>Extrato</b><table id="tab"></table></div>
+<div class="card"><b>Condições</b><br><small id="cond"></small></div>
+<script>
+const P0=12000,INI="2026-10-22",SPREAD=0.002,K="emp_keiti",PIX="44999770290";
+// CDI anual (% a.a., base 252) vigente a partir de cada data. Quando o Copom mudar a Selic, acrescentar uma linha ["AAAA-MM-DD", taxa].
+const CDI=[["2026-10-22",13.65]];
+const $=id=>document.getElementById(id);
+const f=v=>v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const br=s=>s.split("-").reverse().join("/");
+const num=v=>String(v).replace(".",",");
+let d={pg:[]},S=P0,U=INI;
+try{const x=JSON.parse(localStorage.getItem(K));if(x&&Array.isArray(x.pg))d.pg=x.pg}catch(e){}
+function hojeLocal(){const t=new Date(),p=n=>String(n).padStart(2,"0");return t.getFullYear()+"-"+p(t.getMonth()+1)+"-"+p(t.getDate())}
+function dias(a,b){return Math.round((Date.parse(b)-Date.parse(a))/864e5)}
+function taxaM(c){return Math.pow(1+c/100,1/12)-1+SPREAD}
+function fator(a,b){let r=1;for(let k=0;k<CDI.length;k++){const ini=CDI[k][0],fim=k+1<CDI.length?CDI[k+1][0]:"9999-12-31",s=a>ini?a:ini,e=b<fim?b:fim;if(e>s)r*=Math.pow(1+taxaM(CDI[k][1]),dias(s,e)/30.4375)}return r}
+function cresce(v,a,b){return v*fator(a,b)}
+function valor(t){t=String(t).replace(/[^\d.,]/g,"");if(t.includes(","))t=t.replace(/\./g,"").replace(",",".");else if(/^\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,"");const v=Number(t);return t&&isFinite(v)&&v>0?Math.round(v*100)/100:NaN}
+function save(){try{localStorage.setItem(K,JSON.stringify(d))}catch(e){alert("Não foi possível salvar neste aparelho.")}render()}
+function add(){const v=valor($("val").value),x=$("dt").value,h=hojeLocal();
+if(!x)return alert("Informe a data do pagamento.");
+if(x<INI||x>h)return alert("A data deve estar entre "+br(INI)+" e hoje.");
+if(!(v>0))return alert("Valor inválido. Exemplo: 1.500,00");
+if(!confirm("Registrar pagamento de "+f(v)+" em "+br(x)+"?"))return;
+d.pg.push({dt:x,v});$("val").value="";save()}
+function del(i){if(confirm("Excluir o pagamento de "+f(d.pg[i].v)+" em "+br(d.pg[i].dt)+"?")){d.pg.splice(i,1);save()}}
+function copiarPix(){const manual=()=>prompt("Copie a chave Pix:",PIX);
+if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(PIX).then(()=>alert("Chave Pix copiada: "+PIX),manual);else manual()}
+function render(){const h=hojeLocal();let s=P0,u=INI,rows="<tr><th>Data</th><th>Juros</th><th>Pago</th><th>Saldo</th><th></th></tr>";
+rows+=`<tr><td>${br(INI)}</td><td>-</td><td>-</td><td>${f(s)}</td><td></td></tr>`;
+d.pg.map((p,i)=>({...p,i})).sort((a,b)=>a.dt.localeCompare(b.dt)).forEach(p=>{const n=cresce(s,u,p.dt),j=n-s;s=n-p.v;u=p.dt;
+rows+=`<tr><td>${br(p.dt)}</td><td>${f(j)}</td><td>${f(p.v)}</td><td>${f(s)}</td><td><button class="x" onclick="del(${p.i})">x</button></td></tr>`});
+S=s;U=u;const at=h>u?cresce(s,u,h):s;
+rows+=`<tr><td><b>Hoje</b></td><td>${f(at-s)}</td><td>-</td><td><b>${f(at)}</b></td><td></td></tr>`;
+$("tab").innerHTML=rows;$("saldo").textContent=at>0.004?f(at):"Quitado";
+const c=CDI[CDI.length-1][1];
+$("info").textContent="Emprestado "+f(P0)+" em "+br(INI)+" · taxa atual ≈ "+num((taxaM(c)*100).toFixed(2))+"% a.m.";
+$("cond").textContent="100% do CDI + 0,20% a.m., juros compostos dia a dia. CDI atual: "+num(c)+"% a.a. A taxa acompanha as decisões do Copom.";
+$("dt").value=h;$("dt").min=INI;$("dt").max=h;$("sim").min=h;simular()}
+function simular(){const x=$("sim").value,r=$("simr");if(!x){r.textContent="";return}
+if(x<U){r.textContent="Escolha uma data a partir de "+br(U);return}
+const v=cresce(S,U,x);r.textContent="Para quitar em "+br(x)+": "+(v>0.004?f(v):"nada a pagar")}
+render();
+</script></body></html>
