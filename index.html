@@ -25,7 +25,7 @@ small{color:#678}.x{background:#c33;width:auto;padding:4px 8px;font-size:.8em}.s
 <div class="card"><b>Extrato</b><table id="tab"></table></div>
 <div class="card"><b>Condições</b><br><small id="cond"></small><button class="sair" onclick="sair()">Sair</button></div></div>
 <script>
-const P0=12000,INI="2026-10-22",SPREAD=0.002,PIX="44999770290",KP="emp_pin";
+const P0=12000,INI="2026-10-22",SPREAD=0.003,PIX="44999770290",KP="emp_pin";
 const API="https://xcztxsmnwlmihlvlbflr.supabase.co/rest/v1/rpc/",KEY="sb_publishable_qpZzR6p2_zoDywjPrF9kPQ_idw5XAir";
 const CDI=[["2026-10-22",13.65]];
 const $=id=>document.getElementById(id);
@@ -65,7 +65,7 @@ rows+=`<tr><td><b>Hoje</b></td><td>${f(at-s)}</td><td>-</td><td><b>${f(at)}</b><
 $("tab").innerHTML=rows;$("saldo").textContent=at>0.004?f(at):"Quitado";
 const c=CDI[CDI.length-1][1];
 $("info").textContent="Emprestado "+f(P0)+" em "+br(INI)+" · taxa atual ≈ "+num((taxaM(c)*100).toFixed(2))+"% a.m.";
-$("cond").textContent="100% do CDI + 0,20% a.m., juros compostos dia a dia. CDI atual: "+num(c)+"% a.a. Pagamentos salvos na nuvem.";
+$("cond").textContent="100% do CDI + 0,30% a.m., juros compostos dia a dia. CDI atual: "+num(c)+"% a.a. Pagamentos salvos na nuvem.";
 $("dt").value=h;$("dt").min=INI;$("dt").max=h;$("sim").min=h;simular()}
 function simular(){const x=$("sim").value,r=$("simr");if(!x){r.textContent="";return}
 if(x<U){r.textContent="Escolha uma data a partir de "+br(U);return}
