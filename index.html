@@ -9,7 +9,8 @@ header{background:#0b3d5c;color:#fff;padding:20px;text-align:center}
 input,button{font-size:1.05em;padding:10px;width:100%;box-sizing:border-box;margin:5px 0;border-radius:8px;border:1px solid #ccc}
 button{background:#0b3d5c;color:#fff;border:0}table{width:100%;border-collapse:collapse;font-size:.9em}
 td,th{padding:6px;border-bottom:1px solid #eee;text-align:right}td:first-child,th:first-child{text-align:left}
-small{color:#678}.x{background:#c33;width:auto;padding:4px 8px;font-size:.8em}.sair{background:#789}</style></head><body>
+small{color:#678}.x{background:#c33;width:auto;padding:4px 8px;font-size:.8em}.sair{background:#789}
+#hist{font-size:.82em;margin-top:6px}#hist td:nth-child(2),#hist th:nth-child(2){text-align:left}.neg{color:#c33}</style></head><body>
 <div id="login" class="card" style="margin-top:40px;text-align:center"><b>Empréstimo de Dr. Keiti Shirasu</b><br><small>Digite o PIN de acesso</small>
 <input type="password" inputmode="numeric" id="pin" maxlength="12"><button onclick="entrar()">Entrar</button><small id="lerr" style="color:#c33"></small></div>
 <div id="app" style="display:none">
@@ -23,23 +24,36 @@ small{color:#678}.x{background:#c33;width:auto;padding:4px 8px;font-size:.8em}.s
 <div class="card"><b>Simular quitação</b><br><small>Escolha uma data futura para ver o valor que zera a dívida</small>
 <input type="date" id="sim" onchange="simular()"><div id="simr" style="font-size:1.3em;font-weight:700;margin-top:6px"></div></div>
 <div class="card"><b>Extrato</b><table id="tab"></table></div>
+<div class="card"><b>Histórico</b><br><small>Registro automático de tudo que for lançado ou excluído, com data e hora. Não pode ser apagado.</small><table id="hist"></table></div>
 <div class="card"><b>Condições</b><br><small id="cond"></small><button class="sair" onclick="sair()">Sair</button></div></div>
 <script>
 const P0=12000,INI="2026-10-22",SPREAD=0.003,PIX="44999770290",KP="emp_pin";
 const API="https://xcztxsmnwlmihlvlbflr.supabase.co/rest/v1/rpc/",KEY="sb_publishable_qpZzR6p2_zoDywjPrF9kPQ_idw5XAir";
+// CDI anual (% a.a.) vigente a partir de cada data. Quando o Copom mudar a Selic, acrescentar uma linha ["AAAA-MM-DD", taxa].
 const CDI=[["2026-10-22",13.65]];
+const ACAO={registrou:"Lançou",excluiu:"Excluiu",alterou:"Alterou"};
 const $=id=>document.getElementById(id);
 const f=v=>v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const br=s=>s.split("-").reverse().join("/");
 const num=v=>String(v).replace(".",",");
-let PG=[],S=P0,U=INI,PIN=localStorage.getItem(KP)||"";
+let PG=[],S=P0,U=INI,PIN="";
+try{PIN=localStorage.getItem(KP)||""}catch(e){}
 async function rpc(fn,body){const r=await fetch(API+fn,{method:"POST",headers:{apikey:KEY,"Content-Type":"application/json"},body:JSON.stringify({p:PIN,...body})});
 const t=await r.text();if(!r.ok){let m="Erro de conexão";try{m=JSON.parse(t).message||m}catch(e){}throw new Error(m)}return t?JSON.parse(t):null}
 async function carregar(){const x=await rpc("emp_listar",{});PG=x.map(r=>({id:r.id,dt:r.dt,v:Number(r.valor)}));render()}
+function quando(s){s=String(s);try{const m=/^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.\d+)?(Z|[+-]\d\d(?::?\d\d)?)?$/.exec(s);if(!m)return s;
+let t=Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5],+m[6]);const z=(m[7]||"Z").replace(":","");
+if(z!=="Z")t-=(z[0]==="-"?-1:1)*((+z.slice(1,3))*60+(+(z.slice(3,5)||0)))*6e4;
+const p={};new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}).formatToParts(new Date(t)).forEach(x=>p[x.type]=x.value);
+return p.day+"/"+p.month+"/"+p.year+" "+p.hour+":"+p.minute}catch(e){return s}}
+async function carregarHist(){const el=$("hist");try{const x=await rpc("emp_historico",{});
+el.innerHTML=x.length?"<tr><th>Quando</th><th>Ação</th><th>Data Pix</th><th>Valor</th></tr>"+x.map(r=>`<tr><td>${quando(r.quando)}</td><td${r.acao==="excluiu"?' class="neg"':""}>${ACAO[r.acao]||"?"}</td><td>${r.dt?br(r.dt):"-"}</td><td>${r.valor==null?"-":f(Number(r.valor))}</td></tr>`).join(""):"<tr><td><small>Nenhuma movimentação ainda.</small></td></tr>"}
+catch(e){el.innerHTML="<tr><td><small>Não foi possível carregar o histórico. Feche e abra o app.</small></td></tr>"}}
+async function atualizar(){try{await carregar()}catch(e){alert("Feito, mas não consegui atualizar a tela. Feche e abra o app.")}await carregarHist()}
 async function entrar(){PIN=$("pin").value.trim();$("lerr").textContent="";
-try{await carregar();localStorage.setItem(KP,PIN);$("login").style.display="none";$("app").style.display=""}
+try{await carregar();try{localStorage.setItem(KP,PIN)}catch(e){}$("login").style.display="none";$("app").style.display="";carregarHist()}
 catch(e){$("lerr").textContent=e.message==="PIN inválido"?"PIN incorreto":e.message}}
-function sair(){localStorage.removeItem(KP);location.reload()}
+function sair(){try{localStorage.removeItem(KP)}catch(e){}location.reload()}
 function hojeLocal(){const t=new Date(),p=n=>String(n).padStart(2,"0");return t.getFullYear()+"-"+p(t.getMonth()+1)+"-"+p(t.getDate())}
 function dias(a,b){return Math.round((Date.parse(b)-Date.parse(a))/864e5)}
 function taxaM(c){return Math.pow(1+c/100,1/12)-1+SPREAD}
@@ -51,9 +65,12 @@ if(!x)return alert("Informe a data do pagamento.");
 if(x<INI||x>h)return alert("A data deve estar entre "+br(INI)+" e hoje.");
 if(!(v>0))return alert("Valor inválido. Exemplo: 1.500,00");
 if(!confirm("Registrar pagamento de "+f(v)+" em "+br(x)+"?"))return;
-$("btnAdd").disabled=true;try{await rpc("emp_registrar",{d:x,v});$("val").value="";await carregar()}catch(e){alert("Não salvou: "+e.message)}$("btnAdd").disabled=false}
-async function del(id){const p=PG.find(q=>q.id===id);if(!confirm("Excluir o pagamento de "+f(p.v)+" em "+br(p.dt)+"?"))return;
-try{await rpc("emp_excluir",{i:id});await carregar()}catch(e){alert("Não excluiu: "+e.message)}}
+$("btnAdd").disabled=true;let ok=false;
+try{await rpc("emp_registrar",{d:x,v});ok=true;$("val").value=""}catch(e){alert("Não salvou: "+e.message)}
+if(ok)await atualizar();$("btnAdd").disabled=false}
+async function del(id){const p=PG.find(q=>q.id===id);if(!p||!confirm("Excluir o pagamento de "+f(p.v)+" em "+br(p.dt)+"?"))return;
+let ok=false;try{await rpc("emp_excluir",{i:id});ok=true}catch(e){alert("Não excluiu: "+e.message)}
+if(ok)await atualizar()}
 function copiarPix(){const manual=()=>prompt("Copie a chave Pix:",PIX);
 if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(PIX).then(()=>alert("Chave Pix copiada: "+PIX),manual);else manual()}
 function render(){const h=hojeLocal();let s=P0,u=INI,rows="<tr><th>Data</th><th>Juros</th><th>Pago</th><th>Saldo</th><th></th></tr>";
